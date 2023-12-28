@@ -5,15 +5,15 @@ const path = require("path");
 
 const encoding = 'cp936';
 const binaryEncoding = 'binary';
-const downThreshold = 1024 * 50;
+const DOWNTHRESHOLD = 1024 * 50;
 
 const pName = process.argv[2] || 'explorer.exe';
 const netFlowWindow = process.argv[3] || 60;
+const SHUTDOWNDELAY = 600
 
 function iconvDecode(str = '') {
     return iconv.decode(Buffer.from(str, binaryEncoding), encoding);
 }
-
 
 function cmdOps(cmdstring, config = {}) {
     let cmd = cmdstring;
@@ -44,7 +44,7 @@ async function shutdown(sec = 60) {
         await cmdOps(`shutdown /s /t ${sec}`);
         console.log("shutdown");
     } catch (err) {
-        console.error(err);
+        console.log(err);
     }
 }
 
@@ -64,7 +64,7 @@ async function getFlow(sec) {
         }, 0);
         return work;
     } else {
-        return downThreshold;
+        return DOWNTHRESHOLD;
     }
 }
 
@@ -88,33 +88,33 @@ async function getTaskList(pname = '') {
 
 function checkTime(log) {
     let now = new Date();
-    let t = now.getHours() + now.getMinutes() / 100;
-    let f = t > 0.30 && t < 9.00 ? true : false;
-    log.push({ n: 'Time', l: t, f: f })
+    let time = now.getHours() + now.getMinutes() / 100;
+    let flag = time > 0.30 && time < 9.00 ? true : false;
+    log.push({ name: 'Time', log: time, flag: flag })
 }
 
 async function checkTask(log) {
     let taskList = await getTaskList(pName);
-    let f = taskList.length > 0 ? false : true;
+    let flag = taskList.length > 0 ? false : true;
     let taskText = JSON.stringify(taskList);
-    log.push({ l: taskText, f: f, n: "Task" })
+    log.push({ log: taskText, flag: flag, nname: "Task" })
 }
 
 async function checkFLow(log) {
     let flowPerSec = await getFlow(netFlowWindow) / netFlowWindow;
-    let f = flowPerSec > downThreshold ? false : true;
+    let flag = flowPerSec > DOWNTHRESHOLD ? false : true;
     let flowText = (flowPerSec / 1024).toFixed(2) + ' kB / s';
-    log.push({ l: flowText, f: f, n: "Flow" });
+    log.push({ log: flowText, flag: flag, name: "Flow" });
 }
 
 function checkFlag(log) {
-    let sflag = log.reduce((prev, cur) => prev && cur.f, true);
-    if (sflag == true && log.length < 3) { return }
-    if (sflag == true && log.length == 3) {
+    let sflag = log.reduce((prev, cur) => prev && cur.flag, true);
+    if (sflag === true && log.length < 3) { return }
+    if (sflag === true && log.length === 3) {
         printLog(log);
-        shutdown(600)
+        shutdown(SHUTDOWNDELAY)
     }
-    if (sflag == false && log.length < 3) {
+    if (sflag === false) {
         printLog(log);
         process.exit(0)
     }
@@ -122,12 +122,12 @@ function checkFlag(log) {
 
 function printLog(log) {
     let logcontent = `>> ${new Date().toLocaleString()} \n\n`
-    let farr = [];
+    let flagarr = [];
     log.forEach(e => {
-        logcontent += e.n + ': ' + e.l + '\n'
-        farr.push(e.f)
+        logcontent += e.name + ': ' + e.log + '\n'
+        flagarr.push(e.flag)
     });
-    logcontent += 'Flag: ' + JSON.stringify(farr) + '\n\n'
+    logcontent += 'Flag: ' + JSON.stringify(flagarr) + '\n\n'
     console.log(logcontent);
     fs.appendFileSync(path.resolve(__dirname, 'log.log'), logcontent, 'utf-8');
 }
